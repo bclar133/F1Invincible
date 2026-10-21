@@ -31,3 +31,7 @@ The single-page game includes responsive cards, two-row touch-friendly engineeri
 - Images and circuit outlines are served by third-party services; some may fail without internet access.
 - This is an unofficial fan-made project, not affiliated with Formula 1.
 - Do not add a link to the public Brent Clark Games website until publication is specifically approved.
+
+### Circuit asset credit
+
+Monaco circuit SVG adapted from [F1DB](https://github.com/f1db/f1db/blob/main/src/assets/circuits/white/monaco-1.svg), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The source SVG is bundled as `assets/tracks/monaco.svg`. No track geometry modifications were made.

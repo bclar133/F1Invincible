@@ -481,7 +481,7 @@ function restorePhotos(){state.drivers.filter(Boolean).forEach(d=>{try{let p=loc
 function rouletteDriverCard(i,who,year){return `<article class="panel driver-card spinning" aria-label="Spinning driver roulette"><div class="ribbon">DRIVER #${i+1} · ${i===0?'TEAM LEADER':'SECOND SEAT'}</div><div class="driver-shell"><div class="person"><span class="initials">🏎</span></div><div class="driver-details"><div class="eyebrow">ALL-TIME DRIVER ROULETTE</div><div class="name">${safe(who)}</div><div class="driver-stats"><span class="stat-chip">ALL-TIME SKILL</span><span class="stat-chip">SPINNING…</span></div></div></div></article>`}
 const ROULETTE_NAMES=['Ayrton Senna','Michael Schumacher','Lewis Hamilton','Alain Prost','Max Verstappen','Sebastian Vettel','Lando Norris','Oscar Piastri','Fernando Alonso','Kimi Räikkönen','Daniel Ricciardo','Felipe Massa','Nigel Mansell','Charles Leclerc'];
 function driverHtml(d,i){if(spinningDriver===i)return rouletteDriverCard(i,ROULETTE_NAMES[Math.floor(Math.random()*ROULETTE_NAMES.length)],1950+Math.floor(Math.random()*77));if(!d)return `<article class="panel driver-card"><div class="ribbon">DRIVER #${i+1} · ${i===0?'TEAM LEADER':'SECOND SEAT'}</div><div class="driver-empty">🎰<br>SPIN TO REVEAL<br>YOUR DRIVER</div><span class="small muted">One legend from Formula 1 history</span></article>`;
- const p=photoUrl(d);return `<article class="panel driver-card"><div class="ribbon">DRIVER #${i+1} · ${i===0?'TEAM LEADER':'SECOND SEAT'}</div><div class="driver-shell"><div class="person">${p?`<img src="${safe(p)}" alt="Photo of ${safe(d.name)}" onerror="this.closest('.person').innerHTML='<span class=\"initials\">${safe(initials(d))}</span>'">`:`<span class="initials">${safe(initials(d))}</span>`}</div><div class="driver-details"><div class="eyebrow">${d.provisional?'2026 · PROVISIONAL':d.demo?'LEGEND ARCHIVE':'ALL-TIME LEGEND'}</div><div class="name">${safe(d.name)}</div><div class="driver-stats"><span class="stat-chip">ALL-TIME</span><span class="stat-chip">${displayCareerWins(d)} CAREER WINS</span><span class="stat-chip">SKILL <strong>${d.rating}</strong></span></div></div></div></article>`}
+ const p=photoUrl(d);return `<article class="panel driver-card"><div class="ribbon">DRIVER #${i+1} · ${i===0?'TEAM LEADER':'SECOND SEAT'}</div><div class="driver-shell"><div class="person">${p?`<img src="${safe(p)}" alt="Photo of ${safe(d.name)}" onerror="this.closest('.person').innerHTML='<span class=\"initials\">${safe(initials(d))}</span>'">`:`<span class="initials">${safe(initials(d))}</span>`}</div><div class="driver-details"><div class="eyebrow">${d.demo?'LEGEND ARCHIVE':'ALL-TIME LEGEND'}</div><div class="name">${safe(d.name)}</div><div class="driver-stats"><span class="stat-chip">ALL-TIME</span><span class="stat-chip">${displayCareerWins(d)} CAREER WINS</span><span class="stat-chip">SKILL <strong>${d.rating}</strong></span></div></div></div></article>`}
 function renderDrivers(){el('driverCards').innerHTML=state.drivers.map(driverHtml).join('')+`<article class="panel driver-card" style="justify-content:center;gap:12px"><div class="eyebrow">THE ROULETTE RULES</div><h3>EVERY ERA.<br>ONE TEAM.</h3><p class="muted small">Every driver has one permanent all-time ability rating, no matter the year sampled. You have one shared re-roll for either seat.</p><div class="small" style="color:var(--accent)">#1 DRIVER GETS PRIORITY PIT CALLS</div></article>`;
  el('spinFirst').disabled=!!state.drivers[0];el('spinSecond').disabled=!state.drivers[0]||!!state.drivers[1];el('swapDrivers').disabled=!state.drivers[1];el('confirmDrivers').disabled=!state.drivers[1];el('rerollBtn').disabled=!state.drivers[1]||!state.rerolls;el('rerollCounter').textContent=state.rerolls?'1 RE-ROLL AVAILABLE':'RE-ROLL USED';
 }
@@ -490,9 +490,9 @@ async function spinDriverAt(i,avoid=[]){
  spinningDriver=i;btn.disabled=true;btn.textContent='SPINNING…';el('driverStatus').textContent='Spinning through Formula 1 history…';
  const startAt=performance.now();
  const spinTimer=setInterval(()=>{const card=el('driverCards').children[i];if(card)card.outerHTML=rouletteDriverCard(i,ROULETTE_NAMES[Math.floor(Math.random()*ROULETTE_NAMES.length)],1950+Math.floor(Math.random()*77))},105);
- let d=null;try{d=await spin('driver',[...state.drivers.filter(Boolean),...avoid]);await new Promise(resolve=>setTimeout(resolve,Math.max(0,1450-(performance.now()-startAt))));state.drivers[i]=d;state.rerollTarget=i;}
+ let d=null;try{d=await spin('driver',[...state.drivers.filter(Boolean),...avoid]);await new Promise(resolve=>setTimeout(resolve,Math.max(0,1450-(performance.now()-startAt))));state.drivers[i]={...d,rating:allTimeDriverRating(d)};state.rerollTarget=i;}
  finally{clearInterval(spinTimer);spinningDriver=-1;btn.textContent=orig;renderDrivers()}
- if(d){el('driverStatus').textContent=`${d.name} · All-time skill ${d.rating}`;fetchPhoto(d);fetchCareerWins(d);save()}
+ if(d){el('driverStatus').textContent=`${d.name} · All-time skill ${allTimeDriverRating(d)}`;fetchPhoto(d);fetchCareerWins(d);save()}
 }
 
 const MCLAREN_2025_PHOTO='https://commons.wikimedia.org/wiki/Special:FilePath/FIA%20F1%20Austria%202025%20Nr.%204%20Norris.jpg?width=1400';
@@ -702,7 +702,7 @@ function makeRival(driver,team,carScore,index,era,carYear){return {
 function legacyBaseline(t){return {
  car:getRating({position:t.position,points:t.carPoints,top:t.topPoints,field:11},'car'),
  drivers:t.drivers.map(d=>({id:d[0],name:d[1],year:t.year,
-  rating:getRating({position:d[3],points:d[2],top:d[5],wins:d[4],field:23},'driver')}))
+  rating:allTimeDriverRating({id:d[0]})}))
 }}
 async function legacyRating(t){
  const b=legacyBaseline(t);

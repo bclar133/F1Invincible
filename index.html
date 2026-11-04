@@ -345,6 +345,27 @@ button:focus-visible,.choice:focus-visible{outline:2px solid #baff3a;outline-off
  #seasonPage .subhead>div:first-child{width:100%}
  #seasonPage .racepanel-head .pill{font-size:10px}
 }
+
+.pit-drag-controls{margin:13px 0;padding:12px;border:1px solid #3b5571;border-radius:10px;background:#111e30}
+.pit-drag-heading{display:flex;justify-content:space-between;gap:8px;font-size:10px;font-weight:800;color:#d4ebff}
+.pit-drag-heading span{color:#95acc3}
+.pit-drag-track{height:55px;position:relative;margin:7px 4px 3px}
+.pit-drag-fill{position:absolute;left:0;right:0;top:22px;height:12px;border:1px solid #ffffff22;border-radius:6px;pointer-events:none}
+.pit-drag-slider{position:absolute;inset:0;width:100%;height:55px;margin:0;appearance:none;-webkit-appearance:none;background:transparent;pointer-events:none}
+.pit-drag-slider::-webkit-slider-runnable-track{height:12px;background:transparent}
+.pit-drag-slider::-moz-range-track{height:12px;background:transparent}
+.pit-drag-slider::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:30px;height:36px;border:3px solid #102232;border-radius:10px;background:#c3ff56;box-shadow:0 0 0 2px #e5ffab,0 3px 12px #0008;margin-top:-12px;pointer-events:auto;cursor:ew-resize;touch-action:none}
+.pit-drag-slider::-moz-range-thumb{width:25px;height:32px;border:3px solid #102232;border-radius:10px;background:#c3ff56;box-shadow:0 0 0 2px #e5ffab,0 3px 12px #0008;pointer-events:auto;cursor:ew-resize;touch-action:none}
+.pit-drag-slider-2::-webkit-slider-thumb{background:#50dcff;box-shadow:0 0 0 2px #b3f5ff,0 3px 12px #0008}
+.pit-drag-slider-2::-moz-range-thumb{background:#50dcff;box-shadow:0 0 0 2px #b3f5ff,0 3px 12px #0008}
+.pit-drag-slider:focus-visible{outline:2px solid white;outline-offset:2px}
+.pit-drag-labels{display:flex;gap:9px 14px;align-items:center;flex-wrap:wrap;color:#d8ff9a;font-weight:900;font-size:12px}
+.pit-drag-labels [data-pit-value$="-1"]{color:#91e7ff}
+.finish-marker{margin-left:auto;color:#9eb3c9;font-weight:500}
+.stint-slider-caption{margin:10px 0;font-weight:700;font-size:11px;color:#d8ffaa}
+.tyre-driver .stint-control{grid-template-columns:49px minmax(0,1fr) 64px}
+.tyre-driver .stint-control .stint-laps{text-align:right}
+@media(max-width:560px){.pit-drag-controls{padding:11px 9px}.pit-drag-slider::-webkit-slider-thumb{width:33px;height:38px}.pit-drag-slider::-moz-range-thumb{width:28px;height:34px}.tyre-driver .stint-control{grid-template-columns:42px minmax(0,1fr) 55px}.pit-drag-labels{font-size:11px}}
 </style>
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 </head>
@@ -644,12 +665,61 @@ function tyreSelectHtml(seat,field,stint,current,disabled){
  const options=COMPOUNDS.map(([id,label,color])=>`<option value="${id}" ${current===id?'selected':''}>${label}</option>`).join('');
  return `<select aria-label="Stint ${stint+1} tyre for Driver ${seat+1}" data-plan-seat="${seat}" data-plan-stint="${stint}" ${disabled?'disabled':''}>${options}</select>`;
 }
-function pitSelectHtml(seat,pit,plan,laps,disabled){
- const min=pit===0?7:(plan.pits[0]+6),max=pit===0&&plan.stops===2?laps-13:laps-6;
- const options=[];for(let lap=Math.max(1,min);lap<=Math.max(min,max);lap++)options.push(`<option value="${lap}" ${lap===plan.pits[pit]?'selected':''}>Lap ${lap}</option>`);
- return `<select aria-label="Pit stop ${pit+1} on lap" data-plan-seat="${seat}" data-plan-pit="${pit}" ${disabled?'disabled':''}>${options.join('')}</select>`;
-}
 
+const MIN_TYRE_STINT=6;
+function clampPitLap(value,lo,hi){return Math.max(lo,Math.min(hi,Math.round(Number(value)||lo)))}
+function raceStintSliderHtml(seat,plan,laps,driver){
+ if(!plan.stops)return '<div class="stint-slider-caption">NO PIT STOPS · DRIVE TO THE FINISH</div>';
+ const inputs=plan.pits.map((lap,i)=>{
+  const lo=i===0?MIN_TYRE_STINT:plan.pits[0]+MIN_TYRE_STINT;
+  const hi=i===0&&plan.stops===2?plan.pits[1]-MIN_TYRE_STINT:laps-MIN_TYRE_STINT;
+  return `<input type="range" class="pit-drag-slider pit-drag-slider-${i+1}" data-plan-seat="${seat}" data-pit-slider="${i}" min="${lo}" max="${hi}" step="1" value="${lap}" aria-label="${safe(driver)} pit stop ${i+1}, lap ${lap}" aria-valuetext="Lap ${lap} of ${laps}">`;
+ }).join('');
+ return `<div class="pit-drag-controls" role="group" aria-label="${safe(driver)} pit lap controls"><div class="pit-drag-heading"><strong>${plan.stops===1?'PIT STOP':'PIT STOPS'}</strong><span>DRAG HANDLES TO SET PIT LAPS</span></div><div class="pit-drag-track"><div class="pit-drag-fill" data-seat-fill="${seat}"></div>${inputs}</div><div class="pit-drag-labels">${plan.pits.map((lap,i)=>`<span data-pit-value="${seat}-${i}">${plan.stops===2?'PIT '+(i+1)+' · ':''}LAP ${lap}</span>`).join('')}<span class="finish-marker">🏁 LAP ${laps}</span></div></div>`;
+}
+function setPitSliderLap(seat,index,raw){
+ const race=CAL[state.round],weather=forecastFor(race),laps=raceLaps();
+ const plan=normalisePlan(state.tyrePlans[seat],weather,race);
+ if(index>=plan.stops)return;
+ const lo=index===0?MIN_TYRE_STINT:plan.pits[0]+MIN_TYRE_STINT;
+ const hi=index===0&&plan.stops===2?plan.pits[1]-MIN_TYRE_STINT:laps-MIN_TYRE_STINT;
+ plan.pits[index]=clampPitLap(raw,lo,hi);
+ state.tyrePlans[seat]=plan;
+ return plan;
+}
+function refreshPitSliderPreview(seat){
+ const box=el('tyrePanel').querySelector('[data-tyre-driver="'+seat+'"]');if(!box)return;
+ const race=CAL[state.round],weather=forecastFor(race),laps=raceLaps(),plan=normalisePlan(state.tyrePlans[seat],weather,race),review=tyrePlanReview(plan,weather,race);
+ box.querySelectorAll('[data-pit-slider]').forEach((input,i)=>{
+  input.min=i===0?MIN_TYRE_STINT:plan.pits[0]+MIN_TYRE_STINT;
+  input.max=i===0&&plan.stops===2?plan.pits[1]-MIN_TYRE_STINT:laps-MIN_TYRE_STINT;
+  input.value=plan.pits[i];
+  input.setAttribute('aria-label',(state.drivers[seat]?.name||'Driver '+(seat+1))+' pit stop '+(i+1)+', lap '+plan.pits[i]);
+  input.setAttribute('aria-valuetext','Lap '+plan.pits[i]+' of '+laps);
+ });
+ plan.pits.forEach((lap,i)=>{const label=box.querySelector('[data-pit-value="'+seat+'-'+i+'"]');if(label)label.textContent=(plan.stops===2?'PIT '+(i+1)+' · ':'')+'LAP '+lap;});
+ box.querySelectorAll('.stint-segment').forEach((node,i)=>{
+  const len=review.lengths[i];node.style.width=(len/laps*100)+'%';
+  node.title=compoundInfo(plan.compounds[i])[1]+' · '+len+' laps';
+  node.textContent=plan.compounds[i]+' '+len+'L';
+ });
+ box.querySelectorAll('[data-stint-length]').forEach((node,i)=>{node.textContent=review.lengths[i]+' laps';});
+ const feedback=box.querySelector('.tyre-feedback');
+ if(feedback)feedback.innerHTML=review.warnings.length?`<span class="tyre-warning">⚠ ${safe(review.warnings[0])}${review.warnings.length>1?' (+'+(review.warnings.length-1)+' more)':''}</span>`:'<span class="tyre-good">✓ Stint lengths within expected range</span>';
+ const bar=box.querySelector('[data-seat-fill]');
+ if(bar){
+  const bits=plan.compounds.flatMap((c,i)=>{
+   const from=(i?plan.pits[i-1]:0)/laps*100,until=(i<plan.stops?plan.pits[i]:laps)/laps*100;
+   return [compoundInfo(c)[2]+' '+from+'%',compoundInfo(c)[2]+' '+until+'%'];
+  });
+  bar.style.background='linear-gradient(to right,'+bits.join(',')+')';
+ }
+ const stack=pitStackLapClashes(race),warn=el('tyrePanel').querySelector('#livePitStackWarning');
+ if(warn){
+  warn.classList.toggle('hidden',!stack.length);
+  warn.innerHTML=stack.length?'⚠ <strong>DOUBLE STACK · LAP '+stack.join(', ')+'</strong> — Both cars pit together. Driver #2 must wait 3–5 seconds. Move a handle to avoid the queue.':'';
+ }
+}
 // F1 Invincible: a team has one pit box. The second seat waits when both stop
 // on the same lap, losing real simulation score points rather than just text.
 function defaultTeamTyrePlans(weather,race){
@@ -680,18 +750,19 @@ function paintTyres(){
  if(!planning){panel.innerHTML='';return;}
  const weather=forecastFor(CAL[state.round]),race=CAL[state.round],laps=raceLaps();
  const stackLaps=pitStackLapClashes(race);
- panel.innerHTML=`<div class="tyre-head"><div><div class="eyebrow">AFTER QUALIFYING · BEFORE LIGHTS OUT</div><h4>BUILD YOUR RACE TYRE STRATEGY</h4><p>Choose your compounds and pit laps. Your decisions affect race pace, wear and pit-stop costs.</p></div><div class="tyre-head-tools"><button id="autoTyres" type="button" class="auto-button" aria-label="Automatically recommend tyre strategies for both drivers">⚡ AUTO TYRES</button><span class="tyre-lapbadge">${laps} RACE LAPS</span></div></div>
+ panel.innerHTML=`<div class="tyre-head"><div><div class="eyebrow">AFTER QUALIFYING · BEFORE LIGHTS OUT</div><h4>BUILD YOUR RACE TYRE STRATEGY</h4><p>Choose compounds, then drag pit handles to set each stint.</p></div><div class="tyre-head-tools"><button id="autoTyres" type="button" class="auto-button" aria-label="Automatically recommend tyre strategies for both drivers">⚡ AUTO TYRES</button><span class="tyre-lapbadge">${laps} RACE LAPS</span></div></div>
  <div class="tyre-life-guide"><strong>ESTIMATED USABLE LIFE</strong>${COMPOUNDS.map(([c,label,color])=>`<span><i style="background:${color}"></i>${label} ${tyreLife(c,race,weather).join('–')} laps</span>`).join('')}</div>
  <div class="tyre-plans">${[0,1].map(seat=>{
   const plan=normalisePlan(state.tyrePlans[seat],weather,race);state.tyrePlans[seat]=plan;
   const review=tyrePlanReview(plan,weather,race);
   const starts=plan.pits,ends=[...starts,laps],lengths=review.lengths;
   const driver=state.drivers[seat]?.name||`Driver ${seat+1}`;
-  return `<div class="tyre-driver"><div class="tyre-driver-head"><strong><span class="seat-light seat-${seat}"></span>${safe(driver)}</strong><label>STOPS <select data-plan-seat="${seat}" data-plan-stops="true"><option value="0" ${plan.stops===0?'selected':''}>0 · No stop (wet strategy)</option><option value="1" ${plan.stops===1?'selected':''}>1 · One-stop</option><option value="2" ${plan.stops===2?'selected':''}>2 · Two-stop</option></select></label></div>
-  <div class="stint-controls">${plan.compounds.map((c,stint)=>`<div class="stint-control"><span class="stint-label">STINT ${stint+1}</span>${tyreSelectHtml(seat,'compound',stint,c,false)}<span class="stint-laps">${lengths[stint]} laps</span>${stint<plan.stops?`<label class="pit-lap-label">PIT AFTER ${pitSelectHtml(seat,stint,plan,laps,false)}</label>`:`<span class="to-finish">TO FINISH 🏁</span>`}</div>`).join('')}</div>
-  <div class="stint-timeline" aria-label="${safe(driver)} tyre stints">${plan.compounds.map((c,i)=>`<div title="${compoundInfo(c)[1]} · ${lengths[i]} laps" class="stint-segment" style="width:${lengths[i]/laps*100}%;background:${compoundInfo(c)[2]};color:${c==='H'||c==='M'?'#101726':'#ffffff'}">${c} <span>${lengths[i]}L</span></div>`).join('')}</div>
+  return `<div class="tyre-driver" data-tyre-driver="${seat}"><div class="tyre-driver-head"><strong><span class="seat-light seat-${seat}"></span>${safe(driver)}</strong><label>STOPS <select data-plan-seat="${seat}" data-plan-stops="true"><option value="0" ${plan.stops===0?'selected':''}>0 · No stop (wet strategy)</option><option value="1" ${plan.stops===1?'selected':''}>1 · One-stop</option><option value="2" ${plan.stops===2?'selected':''}>2 · Two-stop</option></select></label></div>
+  <div class="stint-controls">${plan.compounds.map((c,stint)=>`<div class="stint-control"><span class="stint-label">STINT ${stint+1}</span>${tyreSelectHtml(seat,'compound',stint,c,false)}<span class="stint-laps" data-stint-length="${stint}">${lengths[stint]} laps</span></div>`).join('')}</div>
+  ${raceStintSliderHtml(seat,plan,laps,driver)}<div class="stint-timeline" aria-label="${safe(driver)} tyre stints">${plan.compounds.map((c,i)=>`<div title="${compoundInfo(c)[1]} · ${lengths[i]} laps" class="stint-segment" style="width:${lengths[i]/laps*100}%;background:${compoundInfo(c)[2]};color:${c==='H'||c==='M'?'#101726':'#ffffff'}">${c} <span>${lengths[i]}L</span></div>`).join('')}</div>
   <div class="tyre-feedback">${review.warnings.length?`<span class="tyre-warning">⚠ ${safe(review.warnings[0])}${review.warnings.length>1?' (+'+(review.warnings.length-1)+' more)':''}</span>`:`<span class="tyre-good">✓ Stint lengths within expected range</span>`}</div></div>`;
- }).join('')}</div>${stackLaps.length?`<div class="tyre-stack-alert" role="status">⚠ <strong>DOUBLE STACK — LAP ${stackLaps.join(' &amp; ')}</strong><br>Both cars are scheduled to use the same pit box. Driver #1 is serviced first; <strong>${safe(state.drivers[1]?.name||'Driver #2')} must wait</strong>, losing roughly 3–5 seconds and potentially positions. Change a pit lap to avoid the queue.</div>`:''}<div class="tyre-start-actions"><button class="btn tyre-start-cta" id="startWithTyres" type="button">▶ START RACE WITH THESE TYRES</button><span>Changes are saved automatically.</span></div><p class="tyre-note">Tyre life is an approximate in-game estimate affected by circuit and temperature, not a real-world tyre guarantee. The weather can change mid-race. Wet or Intermediate tyres may finish the race; in dry conditions, use two different dry compounds.</p>`;
+ }).join('')}</div><div id="livePitStackWarning" class="tyre-stack-alert hidden" role="status"></div><div class="tyre-start-actions"><button class="btn tyre-start-cta" id="startWithTyres" type="button">▶ START RACE WITH THESE TYRES</button><span>Changes save when you release the handle.</span></div><p class="tyre-note">Tyre life is an approximate in-game estimate affected by circuit and temperature, not a real-world tyre guarantee. The weather can change mid-race. Wet or Intermediate tyres may finish the race; in dry conditions, use two different dry compounds.</p>`;
+ refreshPitSliderPreview(0);refreshPitSliderPreview(1);
 }
 function modeLabel(){return SEASON_MODES.find(x=>x[0]===state.mode)?.[1]||SEASON_MODES[0][1]}
 function prepareRoundPlans(){
@@ -1260,7 +1331,7 @@ function wire(){el('startGame').onclick=()=>{if(state.stage!=='home'){show(state
  el('acceptCar').onclick=()=>{renderHQ();show('hqPage')};el('autoBudget').onclick=autoSetBudget;el('autoStrategies').onclick=autoSetDriverStrategies;el('investments').oninput=e=>{const b=e.target.closest('[data-invest-range]');if(!b)return;const k=b.dataset.investRange,other=invested()-state.invest[k],max=Math.max(0,Math.round((budgetTotal()-other)*2)/2);const value=Math.min(max,Math.max(0,Math.round(Number(b.value)*2)/2));b.value=value;el('budget-val-'+k).textContent=toMoney(value);el('moneyLeft').textContent=toMoney(Math.max(0,budgetTotal()-other-value))};el('investments').onchange=e=>{const b=e.target.closest('[data-invest-range]');if(!b)return;const k=b.dataset.investRange,other=invested()-state.invest[k],value=Math.min(Math.max(0,budgetTotal()-other),Number(b.value));state.invest[k]=Math.round(value*2)/2;state.autoBudgetNote='';renderHQ()};
  el('timingExpand').onclick=()=>{showAllTiming=!showAllTiming;timingRender(lastTimingEntries)};el('seasonModeChoices').onclick=e=>{const b=e.target.closest('[data-mode]');if(b&&!state.halftime){state.mode=b.dataset.mode;renderHQ()}};el('driverStrategies').onclick=e=>{const focus=e.target.closest('[data-focus]');if(focus){setFocus(Number(focus.dataset.seat),focus.dataset.focus);return}const b=e.target.closest('[data-strategy]');if(!b)return;const seat=Number(b.dataset.seat),key=b.dataset.strategy;state.driverStrategies[seat][key]=b.dataset.value;state.driverFocus=Array.isArray(state.driverFocus)?state.driverFocus:['balanced','balanced'];state.driverFocus[seat]='custom';state.autoStrategyNote='';renderHQ();const detail=el('advancedSeat'+seat);if(detail)detail.open=true};
  el('startSeason').onclick=async()=>{if(Math.abs(invested()-budgetTotal())>.001)return;if(state.halftime){show('seasonPage');await renderSeason();return}let btn=el('startSeason');btn.disabled=true;btn.textContent='BUILDING THE GRID…';await loadRivals();if(!state.weatherSeed)state.weatherSeed=Math.floor(Math.random()*1000000)+117;btn.textContent='START CHAMPIONSHIP →';show('seasonPage');await renderSeason({skipTrack:state.mode==='blitz'});};
- el('tyrePanel').onclick=e=>{if(e.target.closest('#autoTyres')){autoSetRaceTyres();return}if(e.target.closest('#startWithTyres')&&!racing&&state.pendingQuali?.round===CAL[state.round]?.round)beginRace()};el('tyrePanel').onchange=e=>{
+ el('tyrePanel').onclick=e=>{if(e.target.closest('#autoTyres')){autoSetRaceTyres();return}if(e.target.closest('#startWithTyres')&&!racing&&state.pendingQuali?.round===CAL[state.round]?.round)beginRace()};el('tyrePanel').oninput=e=>{const slider=e.target.closest('[data-pit-slider]');if(!slider||racing||state.pendingQuali?.round!==CAL[state.round]?.round)return;setPitSliderLap(Number(slider.dataset.planSeat),Number(slider.dataset.pitSlider),slider.value);refreshPitSliderPreview(Number(slider.dataset.planSeat))};el('tyrePanel').onchange=e=>{
   const sel=e.target.closest('[data-plan-seat]');if(!sel||racing||!isManualTyres()||state.pendingQuali?.round!==CAL[state.round]?.round)return;
   const seat=Number(sel.dataset.planSeat),weather=forecastFor(CAL[state.round]),race=CAL[state.round],laps=raceLaps();
   let plan=normalisePlan(state.tyrePlans[seat],weather,race);
@@ -1272,10 +1343,8 @@ function wire(){el('startGame').onclick=()=>{if(state.stage!=='home'){show(state
    plan.compounds.length=stops+1;
    plan.pits=Array.from({length:stops},(_,i)=>Math.round(laps*(i+1)/(stops+1)));
   }else if(sel.hasAttribute('data-plan-stint'))plan.compounds[Number(sel.dataset.planStint)]=sel.value;
-  else if(sel.hasAttribute('data-plan-pit')){
-   const idx=Number(sel.dataset.planPit);plan.pits[idx]=Number(sel.value);
-   if(plan.stops===2){if(idx===0&&plan.pits[1]<=plan.pits[0]+5)plan.pits[1]=Math.min(laps-6,plan.pits[0]+6);if(idx===1&&plan.pits[0]>=plan.pits[1]-5)plan.pits[0]=Math.max(6,plan.pits[1]-6);}
-  }
+  else if(sel.hasAttribute('data-pit-slider')){setPitSliderLap(seat,Number(sel.dataset.pitSlider),sel.value);save();refreshPitSliderPreview(seat);return;}
+
   state.tyrePlans[seat]=normalisePlan(plan,weather,race);save();paintTyres();
  };el('trackTheme').onchange=()=>{state.theme=el('trackTheme').value;document.body.dataset.theme=state.theme;setTrackStyle();save()};el('raceBtn').onclick=beginRace;el('skipRace').onclick=finaliseRace;el('nextRace').onclick=nextRace;
  el('modalHost').onclick=e=>{if(e.target.id==='modalBackdrop'||e.target.id==='rulesClose'||e.target.id==='cancelReroll'||e.target.id==='endClose')closeModal();if(e.target.id==='endRestart'){closeModal();reset()}if(/^reroll[01]$/.test(e.target.id)){let i=+e.target.id.slice(-1);closeModal();state.rerolls=0;const old=state.drivers[i];state.drivers[i]=null;spinDriverAt(i,[old])}};

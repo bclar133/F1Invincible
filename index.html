@@ -1090,7 +1090,7 @@ function startGrandPrix(){
  el('gridPause').classList.add('hidden');
  const sim=raceFinish, duration=Number(state.mode)||20000;
  const startRank=new Map(qualResult.grid.map((c,i)=>[c.id,i]));const rank=new Map(sim.entries.map((c,i)=>[c.id,i]));
- raceAnim={...sim,start:performance.now(),duration,lastBucket:-1,rank,startRank,checkpoints:makeRaceCheckpoints(sim,qualResult)};
+ const checkpoints=makeRaceCheckpoints(sim,qualResult);raceAnim={...sim,start:performance.now(),duration,lastBucket:-1,rank,startRank,checkpoints,distances:buildRaceDistances(sim,qualResult,checkpoints)};
  el('leaderBadge').classList.add('is-leader');el('leaderBadge').textContent='RACE LIVE';el('raceBtn').textContent='RACING…';
  addMarkers(qualResult.grid);
  qualResult.grid.forEach((c,i)=>moveMarker(c,.13+(qualResult.grid.length-1-i)*RACE_GRID_GAP));
@@ -1178,43 +1178,79 @@ function timingRender(entries){
  lastTimingEntries=entries;
  const indexed=entries.map((c,i)=>({c,position:i+1}));
  const shown=showAllTiming?indexed:indexed.filter(({c,position})=>position<=10||c.own);
- el('liveTiming').innerHTML=shown.map(({c,position})=>`<div class="timing-row ${c.own?'you':''} ${c.leader?'leader':''} ${c.pitStacking?'pit-stacking':''}"><span class="pos">${position}</span><div><div class="dname">${safe(c.short||c.name)} ${c.own?'★':''}${c.leader?'<span class="leader-icon">●</span>':''}</div><div class="tname">${safe(c.team)}${c.gridPos?' · GRID '+c.gridPos:''}</div></div><span style="text-align:right;color:${c.dnf?'#ff8294':'#96acc1'}">${c.dnf?'OUT':c.pitStacking?'PIT':' '}</span></div>`).join('');
+ el('liveTiming').innerHTML=shown.map(({c,position})=>`<div class="timing-row ${c.own?'you':''} ${c.leader?'leader':''} ${c.pitStacking?'pit-stacking':''}"><span class="pos">${position}</span><div><div class="dname">${safe(c.short||c.name)} ${c.own?'★':''}${c.leader?'<span class="leader-icon">●</span>':''}</div><div class="tname">${safe(c.team)}${c.gridPos?' · GRID '+c.gridPos:''}</div></div><span style="text-align:right;color:${c.dnf?'#ff8294':'#96acc1'}">${c.dnf?'OUT':c.pitStacking?'PIT':c.lapsBehind?'−'+c.lapsBehind+' LAP':''}</span></div>`).join('');
  el('timingExpand').textContent=showAllTiming?'TOP 10 + YOUR CARS':'ALL 22';
 }
 function roundsRender(){el('roundCards').innerHTML=CAL.map((x,i)=>`<div class="round ${i<state.round?'complete':''} ${i===state.round?'now':''}"><b>${String(i+1).padStart(2,'0')}</b><div><strong>${x.flag} ${safe(x.city)}</strong><br><em>${safe(x.name)} GP${x.sprint?' · SPRINT':''}</em></div></div>`).join('')}
 async function renderSeason({skipTrack=false}={}){el('seasonPage').classList.remove('is-running');showAllTiming=false;const race=CAL[Math.min(state.round,22)];el('raceMode').textContent=modeLabel();el('blitzStage').classList.toggle('hidden',state.mode!=='blitz');if(state.mode==='blitz')el('blitzStage').innerHTML='<div class="flash-round">THE 2026 WORLD TOUR</div><div class="flash-venue">23 RACES · 26 SECONDS</div><div class="flash-sub">Press START for one uninterrupted season</div>';prepareRoundPlans();el('roundBadge').textContent=`ROUND ${String(race.round).padStart(2,'0')} / 23${race.sprint?' · SPRINT WEEKEND':''}`;el('venueName').textContent=(race.name==='Bahrain in Malaysia'?'BAHRAIN GP':race.name.toUpperCase()+' GP');el('venueInfo').textContent=`${race.flag} ${race.city} · ${race.country}`;el('leaderBadge').textContent=state.round>=23?'SEASON COMPLETE':'QUALIFYING UP NEXT';el('raceBug').innerHTML='READY · <strong>Q1 → Q2 → Q3</strong>';el('qualOverlay').classList.add('hidden');el('circuitSvg').parentElement.classList.remove('qualifying-layout');el('gridPause').classList.add('hidden');el('leaderBadge').classList.remove('is-leader');el('nextRace').classList.add('hidden');el('skipRace').classList.add('hidden');el('raceBtn').classList.remove('hidden');el('raceBtn').disabled=state.round>=23;el('raceBtn').textContent=state.pendingQuali?.round===race.round?'▶ START RACE':'▶ QUALIFY + RACE';roundsRender();standingsRender();renderOpposition();resetMarkers();timingRender(field());if(state.pendingQuali?.round===race.round){qualResult=state.pendingQuali;showGridSummary(qualResult)}else el('qualSummary').innerHTML='<span>🏁 <b>QUALIFYING FIRST</b> · Q1 → Q2 → Q3 before lights out</span><span class="qual-small">22 cars · 6 out in Q1 · 6 out in Q2 · 10 fight for pole</span>';if(state.round<23&&!skipTrack)await loadTrack(race);if(state.pendingQuali?.round===race.round){qualResult=state.pendingQuali;showGridSummary(qualResult);showRacePause()}}
 
 function makeRaceCheckpoints(sim,qual){
- const base=qual.grid.map(c=>c.id),finish=sim.entries.map(c=>c.id),ids=new Set(base);if(finish.some(id=>!ids.has(id)))return [base,finish];
- const checkpoints=[base];const start=base.map((id,i)=>({id,score:-i*1.8+randomNormal()*5.2+(id==='your0'||id==='your1'?getDriverStrategy({seat:id==='your0'?0:1}).overtake==='attack'?3.8:0:0)})).sort((a,b)=>b.score-a.score).map(x=>x.id);checkpoints.push(start);
- for(let step=2;step<=11;step++){const t=step/12;const previous=checkpoints.at(-1);const fav=new Map(finish.map((id,i)=>[id,i]));const early=new Map(base.map((id,i)=>[id,i]));const old=new Map(previous.map((id,i)=>[id,i]));
- const rankings=new Map(base.map(id=>[id,early.get(id)*(1-t)+fav.get(id)*t+old.get(id)*.2+randomNormal()*(2.1+(1-t)*2.7)]));
- const order=[...base].sort((a,b)=>rankings.get(a)-rankings.get(b));checkpoints.push(order);
+ const base=qual.grid.map(c=>c.id),finish=sim.entries.map(c=>c.id),ids=new Set(base);
+ if(finish.some(id=>!ids.has(id)))return [base,finish];
+ const checkpoints=[base];
+ const start=base.map((id,i)=>({id,score:-i*1.8+randomNormal()*5.2+(id==='your0'||id==='your1'?getDriverStrategy({seat:id==='your0'?0:1}).overtake==='attack'?3.8:0:0)})).sort((a,b)=>b.score-a.score).map(x=>x.id);
+ checkpoints.push(start);
+ for(let step=2;step<=11;step++){
+  const t=step/12,previous=checkpoints.at(-1),fav=new Map(finish.map((id,i)=>[id,i])),early=new Map(base.map((id,i)=>[id,i])),old=new Map(previous.map((id,i)=>[id,i]));
+  const rankings=new Map(base.map(id=>[id,early.get(id)*(1-t)+fav.get(id)*t+old.get(id)*.2+randomNormal()*(2.1+(1-t)*2.7)]));
+  checkpoints.push([...base].sort((a,b)=>rankings.get(a)-rankings.get(b)));
  }
  checkpoints.push(finish);return checkpoints;
 }
-// Race-car coordinates are always measured as increasing distance along the circuit.
-// Every checkpoint may shuffle the order, but speed must never become zero or negative.
-// With 22 cars, at most 12 checkpoint intervals, and a 0.013-lap grid gap,
-// the worst possible rank change contributes -12 * 21 * 0.013 * 1.5 = -4.914 laps
-// per unit time (smoothstep's maximum slope is 1.5). The 5.7-lap forward
-// baseline guarantees at least 0.786 laps of FORWARD movement per unit time.
-const RACE_ANIMATION_LAPS=5.7, RACE_GRID_GAP=.013;
-function interpolatedRaceRank(r,id,t){if(t>=1)return r.rank.get(id);const order=r.checkpoints;const at=Math.min(order.length-2,Math.floor(t*(order.length-1)));const local=t*(order.length-1)-at;const k=local*local*(3-2*local);return order[at].indexOf(id)*(1-k)+order[at+1].indexOf(id)*k}
-function raceForwardDistance(r,id,t){
- const rank=interpolatedRaceRank(r,id,clamp(t,0,1));
- return .13+RACE_ANIMATION_LAPS*clamp(t,0,1)+(r.entries.length-1-rank)*RACE_GRID_GAP;
+// The field has real simulated gaps rather than being locked into a line of
+// markers only 0.013 laps apart. Some races are close and others are stretched.
+// Each checkpoint is converted into monotonically increasing unwrapped
+// distances so overtaking never produces reverse movement.
+const RACE_GRID_GAP=.013;
+function buildRaceDistances(sim,qual,checkpoints){
+ const count=sim.entries.length,score=new Map(sim.entries.map(c=>[c.id,c.score]));
+ const scores=sim.entries.filter(c=>!c.dnf).map(c=>c.score),spread=Math.max(0,...scores)-Math.min(...scores);
+ const wet=forecastFor(CAL[state.round]);
+ const scenario=Math.random(),closeness=scenario<.24?'close':scenario<.69?'normal':'open';
+ const damp=wet.wet==='Wet'||wet.wet==='Showers';
+ const baseGap=closeness==='close'?.0065:closeness==='normal'?.018:.041;
+ const spreadFactor=clamp(spread/75,.40,1.75);
+ const weatherModifier=damp?(closeness==='close'?.95:1.18):1;
+ const difficulty=CAL[state.round]?.corner||.5;
+ const raceFactor=clamp(1+(.5-difficulty)*.22,.85,1.15);
+ const rankGap=(ahead,behind,index,phase)=>{
+  const delta=Math.max(0,(score.get(ahead)||0)-(score.get(behind)||0));
+  const ability=clamp(delta*.0021,0,.066)*spreadFactor;
+  const variability=(.75+deterministicNoise(state.weatherSeed+CAL[state.round].round*53+index*19+phase*7)*.55);
+  return clamp((baseGap+ability)*variability*weatherModifier*raceFactor,.0045,.135);
+ };
+ const snapshots=[],first=new Map();
+ checkpoints[0].forEach((id,i)=>first.set(id,.13+(count-1-i)*RACE_GRID_GAP));
+ snapshots.push(first);
+ for(let phase=1;phase<checkpoints.length;phase++){
+  const order=checkpoints[phase],offsets=new Map();
+  let running=0;
+  for(let i=0;i<order.length;i++){
+   if(i>0)running+=rankGap(order[i-1],order[i],i,phase);
+   offsets.set(order[i],-running);
+  }
+  const prior=snapshots.at(-1),relativePrev=new Map(),leaderPrior=prior.get(checkpoints[phase-1][0]);
+  for(const id of order)relativePrev.set(id,prior.get(id)-leaderPrior);
+  let advance=.52;
+  for(const id of order)advance=Math.max(advance,relativePrev.get(id)-offsets.get(id)+.05);
+  const leaderNow=leaderPrior+advance,next=new Map();
+  for(const id of order)next.set(id,leaderNow+offsets.get(id));
+  snapshots.push(next);
+ }
+ return {snapshots,scenario:closeness,spread};
 }
-
+function raceForwardDistance(r,id,t){
+ const u=clamp(t,0,1),samples=r.distances.snapshots;
+ if(u>=1)return samples.at(-1).get(id);
+ const segment=u*(samples.length-1),i=Math.min(samples.length-2,Math.floor(segment)),local=segment-i;
+ const smooth=local*local*(3-2*local);
+ return samples[i].get(id)*(1-smooth)+samples[i+1].get(id)*smooth;
+}
 function tickRace(now){if(!raceAnim)return;let r=raceAnim,frac=clamp((now-r.start)/r.duration,0,1);let lap=Math.min(100,Math.floor(frac*100));el('raceBug').innerHTML=`RACE <strong>${lap}%</strong> · ${Math.max(0,Math.ceil((1-frac)*r.duration/1000))}s`;
  const stackNow=r.stacks?.find(x=>Math.abs(frac-x.at)<.024);
- const standings=r.entries.map(c=>{
- // Smooth, monotonically increasing unwrapped lap distance: no stopping or
- // reversing when a car gains or loses positions. Modulo is used only in
- // moveMarker() to convert distance onto the closed circuit drawing.
- const p=raceForwardDistance(r,c.id,frac);
- moveMarker(c,p);return {...c,progress:p};
- }).sort((a,b)=>b.progress-a.progress);
+ const standings=r.entries.map(c=>{const p=raceForwardDistance(r,c.id,frac);moveMarker(c,p);return {...c,progress:p};}).sort((a,b)=>b.progress-a.progress);
+ const leadDistance=standings[0]?.progress||0;
+ standings.forEach(c=>{c.lapsBehind=Math.max(0,Math.floor(leadDistance-c.progress+.005));});
  updateTrackOrder(standings);
  if(Math.floor(frac*45)!==r.lastBucket){
   r.lastBucket=Math.floor(frac*45);

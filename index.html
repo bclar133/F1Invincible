@@ -746,7 +746,7 @@ function autoSetDriverStrategies(){
    overtake: car<74&&skill<80?'save':skill>=83?'attack':'balanced'
   };
  });
- state.driverFocus=['custom','custom'];state.autoStrategyNote='Recommended for both drivers. You can fine-tune them under Advanced setup.';
+ state.driverFocus=state.driverStrategies.map(st=>st.qual==='attack'?'qualifying':st.style==='tyres'?'tyres':st.overtake==='attack'?'race':'balanced');state.driverStrategies=state.driverFocus.map((f,i)=>strategyForFocus(f,i));state.autoStrategyNote='Both drivers have recommended focus settings. Adjust manually or open Advanced setup.';
  renderHQ();
 }
 function autoRecommendTyres(race,weather,seat,avoidPits=[]){
@@ -1177,7 +1177,7 @@ async function runBlitzSeason(){
   el('blitzResults').prepend(row);roundsRender();standingsRender();timingRender(finishes.map((c,i)=>({...c,leader:i===0})));
   save();
  }
- blitzRun=false;racing=false;el('raceBtn').classList.add('hidden');el('nextRace').classList.remove('hidden');el('nextRace').textContent='SEE FINAL CHAMPIONSHIP →';el('leaderBadge').textContent='SEASON COMPLETE';el('raceBug').innerHTML='🏁 FULL SEASON COMPLETE';save();showEnd();
+ blitzRun=false;racing=false;el('seasonPage').classList.remove('is-running');el('raceBtn').classList.add('hidden');el('nextRace').classList.remove('hidden');el('nextRace').textContent='SEE FINAL CHAMPIONSHIP →';el('leaderBadge').textContent='SEASON COMPLETE';el('raceBug').innerHTML='🏁 FULL SEASON COMPLETE';save();showEnd();
 }
 
 function beginRace(){

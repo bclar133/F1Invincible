@@ -581,8 +581,21 @@ function rouletteDriverCard(i,who,year){return `<article class="panel driver-car
 const ROULETTE_NAMES=['Ayrton Senna','Michael Schumacher','Lewis Hamilton','Alain Prost','Max Verstappen','Sebastian Vettel','Lando Norris','Oscar Piastri','Fernando Alonso','Kimi Räikkönen','Daniel Ricciardo','Felipe Massa','Nigel Mansell','Charles Leclerc'];
 function driverHtml(d,i){if(spinningDriver===i)return rouletteDriverCard(i,ROULETTE_NAMES[Math.floor(Math.random()*ROULETTE_NAMES.length)],1950+Math.floor(Math.random()*77));if(!d)return `<article class="panel driver-card"><div class="ribbon">DRIVER #${i+1} · ${i===0?'TEAM LEADER':'SECOND SEAT'}</div><div class="driver-empty">🎰<br>SPIN TO REVEAL<br>YOUR DRIVER</div><span class="small muted">One legend from Formula 1 history</span></article>`;
  const p=photoUrl(d);return `<article class="panel driver-card"><div class="ribbon">DRIVER #${i+1} · ${i===0?'TEAM LEADER':'SECOND SEAT'}</div><div class="driver-shell"><div class="person">${p?`<img src="${safe(p)}" alt="Photo of ${safe(d.name)}" onerror="this.closest('.person').innerHTML='<span class=\"initials\">${safe(initials(d))}</span>'">`:`<span class="initials">${safe(initials(d))}</span>`}</div><div class="driver-details"><div class="eyebrow">${d.demo?'LEGEND ARCHIVE':'ALL-TIME LEGEND'}</div><div class="name">${safe(d.name)}</div><div class="driver-stats"><span class="stat-chip">ALL-TIME</span><span class="stat-chip">${displayCareerWins(d)} CAREER WINS</span><span class="stat-chip">SKILL <strong>${d.rating}</strong></span></div></div></div></article>`}
-function renderDrivers(){el('driverCards').innerHTML=state.drivers.map(driverHtml).join('')+`<article class="panel driver-card" style="justify-content:center;gap:12px"><div class="eyebrow">THE ROULETTE RULES</div><h3>EVERY ERA.<br>ONE TEAM.</h3><p class="muted small">Every driver has one permanent all-time ability rating, no matter the year sampled. You have one shared re-roll for either seat.</p><div class="small" style="color:var(--accent)">#1 DRIVER GETS PRIORITY PIT CALLS</div></article>`;
- el('spinFirst').disabled=!!state.drivers[0];el('spinSecond').disabled=!state.drivers[0]||!!state.drivers[1];el('swapDrivers').disabled=!state.drivers[1];el('confirmDrivers').disabled=!state.drivers[1];el('rerollBtn').disabled=!state.drivers[1]||!state.rerolls;el('rerollCounter').textContent=state.rerolls?'1 RE-ROLL AVAILABLE':'RE-ROLL USED';
+function renderDrivers(){
+ el('driverCards').innerHTML=state.drivers.map(driverHtml).join('');
+ const first=!!state.drivers[0],both=!!state.drivers[1];
+ el('spinFirst').classList.toggle('hidden',first);
+ el('spinSecond').classList.toggle('hidden',!first||both);
+ el('confirmDrivers').classList.toggle('hidden',!both);
+ el('spinFirst').disabled=first;
+ el('spinSecond').disabled=!first||both;
+ el('swapDrivers').disabled=!both;
+ el('confirmDrivers').disabled=!both;
+ el('rerollBtn').disabled=!both||!state.rerolls;
+ el('rerollBtn').classList.toggle('hidden',!both||!state.rerolls);
+ el('swapDrivers').classList.toggle('hidden',!both);
+ el('rerollCounter').textContent=state.rerolls?'ONE RE-ROLL':'RE-ROLL USED';
+ el('confirmDrivers').classList.remove('secondary');
 }
 async function spinDriverAt(i,avoid=[]){
  const btn=i?el('spinSecond'):el('spinFirst'),orig=btn.textContent;
@@ -618,7 +631,7 @@ async function fetchCarPhoto(c){if(!c)return;const key=c.year+':'+c.id;
  if(chosen){const img=chosen.imageinfo[0],url=img.thumburl||img.url;carPhotoCache.set(key,{url,title:chosen.title});setCarPhoto(url,`${c.year} ${c.name} Formula One racing car`,`${c.year} ${c.name} · Wikimedia Commons`)}
  else{el('carPhoto').removeAttribute('src');carPicFallback(`An authenticated ${c.year} ${c.name} car image could not be found.`);el('carPhotoCaption').textContent=`${c.year} ${c.name}`}
 }
-function renderCar(){const c=state.car;if(c)fetchCarPhoto(c);else setCarPhoto(MCLAREN_2025_PHOTO,'2025 McLaren MCL39 driven by Lando Norris','2025 McLaren MCL39 · Lando Norris');el('carInfo').innerHTML=c?`<div class="eyebrow">THE ${c.year} MACHINE ${c.provisional?'· PROVISIONAL':''}</div><h2>${safe(c.name.toUpperCase())}</h2>${c.provisional?`<p class="small muted">${c.asOf||'2026 live provisional standings'}</p>`:''}<p>Constructor championship finish: <b>P${c.position}</b></p><div class="bigscore">${c.rating}<small>HISTORICAL CAR RATING</small></div><p class="muted small">Rated relative to rivals from its own season. A dominant older car can beat a recent underperformer.</p>`:`<div class="eyebrow">Mystery constructor</div><h2>WHO WILL YOU DRIVE?</h2><p class="muted">Your car's power is calculated from its constructor's real historical results.</p>`;el('spinCar').disabled=!!c;el('acceptCar').disabled=!c}
+function renderCar(){const c=state.car;if(c)fetchCarPhoto(c);else setCarPhoto(MCLAREN_2025_PHOTO,'2025 McLaren MCL39 driven by Lando Norris','2025 McLaren MCL39 · Lando Norris');el('carInfo').innerHTML=c?`<div class="eyebrow">THE ${c.year} MACHINE ${c.provisional?'· PROVISIONAL':''}</div><h2>${safe(c.name.toUpperCase())}</h2>${c.provisional?`<p class="small muted">${c.asOf||'2026 live provisional standings'}</p>`:''}<p>Constructor championship finish: <b>P${c.position}</b></p><div class="bigscore">${c.rating}<small>HISTORICAL CAR RATING</small></div><p class="muted small">Rated relative to rivals from its own season. A dominant older car can beat a recent underperformer.</p>`:`<div class="eyebrow">Mystery constructor</div><h2>WHO WILL YOU DRIVE?</h2><p class="muted">Your car's power is calculated from its constructor's real historical results.</p>`;el('spinCar').disabled=!!c;el('acceptCar').disabled=!c;el('spinCar').classList.toggle('hidden',!!c);el('acceptCar').classList.toggle('hidden',!c);el('acceptCar').classList.remove('secondary')}
 
 function getDriverStrategy(c){return state.driverStrategies?.[c.seat]||DEFAULT_STRATEGIES()[c.seat]||DEFAULT_STRATEGIES()[0]}
 function deterministicNoise(seed){const x=Math.sin(seed*127.17+seed*seed*.013)*43758.5453;return x-Math.floor(x)}
@@ -733,7 +746,7 @@ function autoSetDriverStrategies(){
    overtake: car<74&&skill<80?'save':skill>=83?'attack':'balanced'
   };
  });
- state.autoStrategyNote='Season-wide setups use the selected drivers, historical car rating and engineering budget. Your two drivers are assessed separately; adjust any option manually.';
+ state.driverFocus=['custom','custom'];state.autoStrategyNote='Recommended for both drivers. You can fine-tune them under Advanced setup.';
  renderHQ();
 }
 function autoRecommendTyres(race,weather,seat,avoidPits=[]){
@@ -782,16 +795,51 @@ function autoSetRaceTyres(){
 
 function invested(){return Object.values(state.invest).reduce((a,b)=>a+Number(b||0),0)}
 function budgetTotal(){return state.halftime?12.5:10}
-function renderHQ(){let remaining=+(budgetTotal()-invested()).toFixed(1);el('hqEyebrow').textContent=state.halftime?'Halfway through the season':'Pre-season engineering';el('hqHeading').textContent=state.halftime?'MID-SEASON UPGRADES':'BUILD YOUR ADVANTAGE';el('hqDesc').textContent=state.halftime?'You have an extra $2.5 million. Reallocate engineering spend and adjust each driver strategy. The race viewing mode stays locked.':'All six engineering departments start at $0. Allocate your full $10 million budget, then choose a race mode and tune each driver independently.';el('moneyLeft').textContent=toMoney(Math.max(0,remaining));el('moneyLeft').style.color=remaining<0?'#ff5575':'var(--accent)';
+function strategyForFocus(focus,seat){
+ const rating=Number(state.drivers?.[seat]?.rating)||78;
+ const baseline={style:'balanced',pit:'balanced',qual:'balanced',overtake:'balanced'};
+ if(focus==='qualifying')return {...baseline,qual:'attack',style:'speed',overtake:'balanced'};
+ if(focus==='race')return {...baseline,qual:'race',style:'corners',pit:'aggressive',overtake:'attack'};
+ if(focus==='tyres')return {...baseline,style:'tyres',pit:'conservative',qual:'race',overtake:'save'};
+ return {...baseline,qual:rating>92?'attack':'balanced'};
+}
+function setFocus(seat,focus){
+ if(!['balanced','qualifying','race','tyres'].includes(focus))return;
+ state.driverFocus=Array.isArray(state.driverFocus)?state.driverFocus:['balanced','balanced'];
+ state.driverFocus[seat]=focus;
+ state.driverStrategies[seat]=strategyForFocus(focus,seat);
+ state.autoStrategyNote='';
+ renderHQ();
+}
+function renderHQ(){
+ const remaining=+(budgetTotal()-invested()).toFixed(1);
+ el('hqEyebrow').textContent=state.halftime?'Mid-season engineering':'Team setup';
+ el('hqHeading').textContent=state.halftime?'UPGRADE YOUR TEAM':'BUILD YOUR TEAM';
+ el('hqDesc').textContent=state.halftime?'Spend the additional $2.5 million, or use Auto Budget.':'Allocate $10 million, select a race view, then choose each driver’s focus.';
+ el('moneyLeft').textContent=toMoney(Math.max(0,remaining));
+ el('moneyLeft').style.color=remaining<0?'#ff5575':'var(--accent)';
  el('budgetBars').innerHTML=DEPARTMENTS.map((d,i)=>`<i style="width:${state.invest[d[0]]/budgetTotal()*100}%;background:${['#bbff47','#39d7ff','#ffcd68','#b994ff','#ff7b83','#ffe679'][i]}"></i>`).join('');
- el('investments').innerHTML=DEPARTMENTS.map(([key,name,help])=>`<div class="invest-row"><label>${name}<div class="help">${help}</div></label><div class="trackbar"><i style="width:${state.invest[key]/budgetTotal()*100}%"></i></div><div class="val">${toMoney(state.invest[key])}</div><button class="mini-btn" data-invest="${key}" data-delta="-0.5" aria-label="Reduce ${name}" ${state.invest[key]<=0?'disabled':''}>−</button><button class="mini-btn" data-invest="${key}" data-delta="0.5" aria-label="Increase ${name}" ${remaining<.5?'disabled':''}>+</button></div>`).join('');
- el('seasonModeChoices').innerHTML=SEASON_MODES.map(([k,v,n])=>`<button class="choice mode-option ${state.mode===k?'selected':''}" data-mode="${k}" ${state.halftime?'disabled':''}><strong>${v}</strong><small>${n}</small></button>`).join('');
- el('driverStrategies').innerHTML=[0,1].map(i=>{const d=state.drivers[i],st=state.driverStrategies[i];const opts=(items,kind,current)=>`<div class="choice-wrap">${items.map(([k,label])=>`<button class="choice ${current===k?'selected':''}" data-seat="${i}" data-strategy="${kind}" data-value="${k}">${label}</button>`).join('')}</div>`;
- return `<div class="driver-strategy"><h4>${i===0?'#1 · TEAM LEADER':'#2 · SECOND SEAT'} · ${safe(d?.name||'Driver '+(i+1))}</h4><span class="strategy-label">RACING STYLE</span>${opts(styles,'style',st.style)}<span class="strategy-label">PIT STRATEGY</span>${opts(pitStyles,'pit',st.pit)}<span class="strategy-label">QUALIFYING</span>${opts(qualStyles,'qual',st.qual)}<span class="strategy-label">2026 OVERTAKE MODE</span>${opts(OVERTAKE_STYLES,'overtake',st.overtake)}</div>`}).join('');
- el('teamSummary').innerHTML=`<div class="eyebrow">YOUR GARAGE</div><h3 style="margin-top:8px">INVINCIBLE RACING</h3><div class="small"><strong>${safe(state.drivers[0]?.name||'Driver 1')}</strong> · SKILL ${state.drivers[0]?.rating||'—'}<br><strong>${safe(state.drivers[1]?.name||'Driver 2')}</strong> · SKILL ${state.drivers[1]?.rating||'—'}<br><span class="muted">Car:</span> ${safe(state.car?.name)} ${state.car?.year}</div>`;
+ el('investments').innerHTML=DEPARTMENTS.map(([key,name,help])=>`<div class="invest-row"><label for="budget-${key}">${name}<div class="help">${help}</div></label><input class="budget-slider" type="range" id="budget-${key}" data-invest-range="${key}" min="0" max="${budgetTotal()}" step="0.5" value="${state.invest[key]}" aria-label="${name} engineering budget"><span class="val" id="budget-val-${key}">${toMoney(state.invest[key])}</span></div>`).join('');
+ const modeNames={'20000':'Full','10000':'Highlights','5000':'Quick','blitz':'Season Sim'};
+ el('seasonModeChoices').innerHTML=SEASON_MODES.map(([k,v,n])=>`<button class="choice mode-option ${state.mode===k?'selected':''}" data-mode="${k}" ${state.halftime?'disabled':''}><strong>${modeNames[k]}</strong></button>`).join('');
+ let hint=el('modeHint');
+ if(!hint){hint=document.createElement('p');hint.id='modeHint';hint.className='mode-selected-hint';el('seasonModeChoices').after(hint)}
+ hint.textContent=SEASON_MODES.find(x=>x[0]===state.mode)?.[2]||'';
+ state.driverFocus=Array.isArray(state.driverFocus)?state.driverFocus:['balanced','balanced'];
+ el('driverStrategies').innerHTML=[0,1].map(i=>{
+ const d=state.drivers[i],st=state.driverStrategies[i],focus=state.driverFocus[i];
+ const choices=[['balanced','Balanced'],['qualifying','Qualifying'],['race','Race Pace'],['tyres','Tyre Saver']];
+ const focusButtons=choices.map(([k,label])=>`<button class="choice ${focus===k?'selected':''}" data-seat="${i}" data-focus="${k}">${label}</button>`).join('');
+ const opts=(items,kind,current)=>`<div class="choice-wrap">${items.map(([k,label])=>`<button class="choice ${current===k?'selected':''}" data-seat="${i}" data-strategy="${kind}" data-value="${k}">${label}</button>`).join('')}</div>`;
+ return `<div class="driver-strategy"><h4>#${i+1} · ${safe(d?.name||'Driver '+(i+1))}</h4><div class="focus-picker">${focusButtons}</div><details class="focus-advanced" id="advancedSeat${i}"><summary>Advanced setup${focus==='custom'?' · Custom':''}</summary><span class="strategy-label">RACING STYLE</span>${opts(styles,'style',st.style)}<span class="strategy-label">PIT STRATEGY</span>${opts(pitStyles,'pit',st.pit)}<span class="strategy-label">QUALIFYING</span>${opts(qualStyles,'qual',st.qual)}<span class="strategy-label">OVERTAKE MODE</span>${opts(OVERTAKE_STYLES,'overtake',st.overtake)}</details></div>`;
+ }).join('');
+ el('teamSummary').innerHTML=`<div class="small"><b>${safe(state.drivers[0]?.name||'Driver 1')}</b> · ${safe(state.drivers[1]?.name||'Driver 2')}<br><span class="muted">${safe(state.car?.year)} ${safe(state.car?.name)}</span></div>`;
  const budgetReason=el('autoBudgetReason');budgetReason.classList.toggle('hidden',!state.autoBudgetNote);budgetReason.textContent=state.autoBudgetNote||'';
  const strategyReason=el('autoStrategyReason');strategyReason.classList.toggle('hidden',!state.autoStrategyNote);strategyReason.textContent=state.autoStrategyNote||'';
- el('startSeason').disabled=Math.abs(remaining)>.001;el('startSeason').textContent=state.halftime?'CONFIRM UPGRADES →':'START CHAMPIONSHIP →';save()}
+ el('startSeason').disabled=Math.abs(remaining)>.001;
+ el('startSeason').textContent=state.halftime?'CONFIRM UPGRADES →':'START SEASON →';
+ save();
+}
 function shuffled(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){let k=Math.floor(Math.random()*(i+1));[a[i],a[k]]=[a[k],a[i]]}return a}
 function makeRival(driver,team,carScore,index,era,carYear){return {
  id:'r'+index,name:driver.name,short:driver.name.split(' ').at(-1),team,
@@ -1201,8 +1249,8 @@ function wire(){el('startGame').onclick=()=>{if(state.stage!=='home'){show(state
  el('swapDrivers').onclick=()=>{state.drivers.reverse();renderDrivers();save()};el('rerollBtn').onclick=()=>showModal(`<div class="eyebrow">One chance only</div><h2>CHOOSE YOUR RE-ROLL</h2><p>You have one re-roll to use on either driver. The new result must be kept.</p><div class="split-actions"><button class="btn" id="reroll0">DRIVER #1</button><button class="btn" id="reroll1">DRIVER #2</button><button class="btn secondary" id="cancelReroll">CANCEL</button></div>`);
  el('confirmDrivers').onclick=()=>{if(state.drivers.every(Boolean)){renderCar();show('carPage')}};
  el('spinCar').onclick=async()=>{const b=el('spinCar');b.disabled=true;b.textContent='SPINNING…';el('carStatus').textContent='Spinning through famous F1 cars…';const card=document.querySelector('.car-reveal');card.classList.add('spinning');const startAt=performance.now();const spins=['McLaren','Ferrari','Mercedes','Red Bull','Lotus','Williams','Renault','Haas','Brawn'];const timer=setInterval(()=>{const a=spins[Math.floor(Math.random()*spins.length)],yr=1950+Math.floor(Math.random()*77);el('carInfo').innerHTML=`<div class="eyebrow">THE MACHINE ROULETTE</div><h2>${a.toUpperCase()}</h2><div class="bigscore">${yr}</div><p class="muted">SPINNING…</p>`},105);try{const car=await spin('car');await new Promise(r=>setTimeout(r,Math.max(0,1500-(performance.now()-startAt))));state.car=car;el('carStatus').textContent=car.demo?'Demo selection — live historic standings unavailable.':'Car secured. No re-rolls!';b.textContent='CAR LOCKED'}finally{clearInterval(timer);card.classList.remove('spinning');renderCar();save()}};
- el('acceptCar').onclick=()=>{renderHQ();show('hqPage')};el('autoBudget').onclick=autoSetBudget;el('autoStrategies').onclick=autoSetDriverStrategies;el('investments').onclick=e=>{let b=e.target.closest('[data-invest]');if(!b)return;let k=b.dataset.invest,v=+b.dataset.delta,next=state.invest[k]+v;if(next>=0&&invested()+v<=budgetTotal()+.001){state.invest[k]=Math.round(next*2)/2;state.autoBudgetNote='';renderHQ()}};
- el('seasonModeChoices').onclick=e=>{const b=e.target.closest('[data-mode]');if(b&&!state.halftime){state.mode=b.dataset.mode;renderHQ()}};el('driverStrategies').onclick=e=>{const b=e.target.closest('[data-strategy]');if(!b)return;const seat=Number(b.dataset.seat),key=b.dataset.strategy;state.driverStrategies[seat][key]=b.dataset.value;state.autoStrategyNote='';renderHQ()};
+ el('acceptCar').onclick=()=>{renderHQ();show('hqPage')};el('autoBudget').onclick=autoSetBudget;el('autoStrategies').onclick=autoSetDriverStrategies;el('investments').oninput=e=>{const b=e.target.closest('[data-invest-range]');if(!b)return;const k=b.dataset.investRange,other=invested()-state.invest[k],max=Math.max(0,Math.round((budgetTotal()-other)*2)/2);const value=Math.min(max,Math.max(0,Math.round(Number(b.value)*2)/2));b.value=value;el('budget-val-'+k).textContent=toMoney(value);el('moneyLeft').textContent=toMoney(Math.max(0,budgetTotal()-other-value))};el('investments').onchange=e=>{const b=e.target.closest('[data-invest-range]');if(!b)return;const k=b.dataset.investRange,other=invested()-state.invest[k],value=Math.min(Math.max(0,budgetTotal()-other),Number(b.value));state.invest[k]=Math.round(value*2)/2;state.autoBudgetNote='';renderHQ()};
+ el('seasonModeChoices').onclick=e=>{const b=e.target.closest('[data-mode]');if(b&&!state.halftime){state.mode=b.dataset.mode;renderHQ()}};el('driverStrategies').onclick=e=>{const focus=e.target.closest('[data-focus]');if(focus){setFocus(Number(focus.dataset.seat),focus.dataset.focus);return}const b=e.target.closest('[data-strategy]');if(!b)return;const seat=Number(b.dataset.seat),key=b.dataset.strategy;state.driverStrategies[seat][key]=b.dataset.value;state.driverFocus=Array.isArray(state.driverFocus)?state.driverFocus:['balanced','balanced'];state.driverFocus[seat]='custom';state.autoStrategyNote='';renderHQ();const detail=el('advancedSeat'+seat);if(detail)detail.open=true};
  el('startSeason').onclick=async()=>{if(Math.abs(invested()-budgetTotal())>.001)return;if(state.halftime){show('seasonPage');await renderSeason();return}let btn=el('startSeason');btn.disabled=true;btn.textContent='BUILDING THE GRID…';await loadRivals();if(!state.weatherSeed)state.weatherSeed=Math.floor(Math.random()*1000000)+117;btn.textContent='START CHAMPIONSHIP →';show('seasonPage');await renderSeason({skipTrack:state.mode==='blitz'});};
  el('tyrePanel').onclick=e=>{if(e.target.closest('#autoTyres')){autoSetRaceTyres();return}if(e.target.closest('#startWithTyres')&&!racing&&state.pendingQuali?.round===CAL[state.round]?.round)beginRace()};el('tyrePanel').onchange=e=>{
   const sel=e.target.closest('[data-plan-seat]');if(!sel||racing||!isManualTyres()||state.pendingQuali?.round!==CAL[state.round]?.round)return;
